@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="NetTest/NetTest.csproj" Id="680e72fc-8261-440c-b3ff-a10ff3eb23c0" />
+  <Project Path="NetTest_Client/NetTest_Client.csproj" Id="34b66813-de02-40ef-b280-ea77e087ffa4" />
+  <Project Path="Network/Network.csproj" />
+</Solution>
