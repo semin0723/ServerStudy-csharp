@@ -16,6 +16,8 @@ namespace Network
         private readonly int _bufferSize;
         private readonly int _bufferPoolDefaultSize;
         private readonly float _sendTimeoutInterval;
+        private readonly int _tickFrame;
+        private readonly float _tickInterval;
         private int _disposed;
         private Task? _loopTask;
 
@@ -30,21 +32,26 @@ namespace Network
         public ConcurrentQueue<NetMessage>? msgSendQueue { get; private set; }
         private ConcurrentQueue<SendSet>? pendingSendQueue;
 
+        private NetMessageFactory _netMessagePool;
+
         private class AcceptWithCancel
         {
             public Socket socket;
             public CancellationToken token;
         }
 
-        public NetBase()
+        public NetBase(int fps)
         {
+            _tickFrame = fps;
+            _tickInterval = 1.0f / _tickFrame;
             _sendTimeoutInterval = 0.2f;
-            _bufferSize = 512;
+            _bufferSize = 256;
             _bufferPoolDefaultSize = 30;
             _timerSystem = new TimerSystem();
             _disposed = 0;
             _acceptCancellationTokenSource = new CancellationTokenSource();
             _sessionPool = new List<Session>();
+            _netMessagePool = new NetMessageFactory(100);
             _socketMap = new ConcurrentDictionary<uint, Socket>();
 
             msgRecvQueue = new ConcurrentQueue<NetMessage>();
@@ -114,10 +121,16 @@ namespace Network
 
         async Task RunAsync()
         {
+            float elapsedTime = 0;
             while(Interlocked.Equals(_disposed, 0))
             {
                 _timerSystem.Update();
-                SendMessage();
+                elapsedTime += _timerSystem.deltaTime;
+                if(elapsedTime >= _tickInterval)
+                {
+                    elapsedTime -= _tickInterval;
+                    SendMessage();
+                }
             }
             _mainSocket.Dispose();
         }
@@ -136,6 +149,7 @@ namespace Network
                 bool res = pendingSendQueue.TryDequeue(out ss);
                 if (res == false)
                 {
+                    Thread.Sleep(1);
                     continue;
                 }
 
@@ -157,6 +171,7 @@ namespace Network
                 bool res = msgSendQueue.TryDequeue(out message);
                 if (res == false)
                 {
+                    Thread.Sleep(1);
                     continue;
                 }
                 Socket sender;
@@ -167,13 +182,13 @@ namespace Network
                     continue;
                 }
 
-                SendSet ss = new SendSet()
+                /*SendSet ss = new SendSet()
                 {
                     senderSocket = sender,
                     data = message.data,
-                };
+                };*/
 
-                ThreadPool.QueueUserWorkItem(SendAsync, ss);
+                //ThreadPool.QueueUserWorkItem(SendAsync, ss);
 
                 elapsedTime += _timerSystem.deltaTime;
             }

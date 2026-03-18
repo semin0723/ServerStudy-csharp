@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -55,15 +56,11 @@ namespace Network
                         _socketMap[newSession.sessionID] = clientSocket;
                     }
 
-                    msgRecvQueue.Enqueue(
-                        new NetMessage
-                        {
-                            MessageState = 1,
-                            byteCount = 0,
-                            data = null,
-                            sessionID = newSession.sessionID
-                        }
-                    );
+                    NetMessage netMsg = _netMessagePool.Rent();
+                    netMsg.MessageState = 1;
+                    netMsg.sessionID = newSession.sessionID;
+
+                    msgRecvQueue.Enqueue(netMsg);
 
                     ThreadPool.QueueUserWorkItem(RecvAsync, newSession);
                 }
@@ -91,71 +88,59 @@ namespace Network
 
             while(true)
             {
+                int result = 0;
                 try
                 {
-                    byte[] buffer = new byte[_bufferSize];
+                    IMemoryOwner<byte> recvBuffer = MemoryPool<byte>.Shared.Rent(_bufferSize);
 
-                    var byteTransferred = await client.ReceiveAsync(buffer, SocketFlags.None);
+                    var byteTransferred = await client.ReceiveAsync(recvBuffer.Memory, SocketFlags.None);
                     if(byteTransferred == 0)
                     {
-                        Socket socket;
-                        _socketMap.TryRemove(session.sessionID, out socket);
-
-                        msgRecvQueue.Enqueue(
-                            new NetMessage
-                            {
-                                MessageState = -1,
-                                byteCount = 0,
-                                data = null,
-                                sessionID = session.sessionID
-                            }
-                        );
-                        client.Shutdown(SocketShutdown.Both);
-                        client.Dispose();
-
-                        _sessionPool.Add(session);
-
-                        return;
+                        throw new ClientShutDownException("Client shutdown socket.");
                     }
 
-                    NetMessage nm = new NetMessage
-                    {
-                        MessageState = 0,
-                        sessionID = session.sessionID,
-                        byteCount = byteTransferred,
-                        data = buffer,
-                    };
+                    NetMessage netMsg = _netMessagePool.Rent();
+                    netMsg.MessageState = 0;
+                    netMsg.sessionID = session.sessionID;
+                    netMsg.byteCount = byteTransferred;
+                    netMsg.data = recvBuffer;
 
-                    msgRecvQueue.Enqueue(nm);
+                    msgRecvQueue.Enqueue(netMsg);
                 }
                 catch(Exception ex) when (ex is SocketException)
                 {
                     SocketException socketException = ex as SocketException;
                     Console.WriteLine($"Socket Exception. Message: {ex.Message}, SocketError No. {socketException.ErrorCode}");
-
-                    Socket socket;
-                    _socketMap.TryRemove(session.sessionID, out socket);
-
-                    msgRecvQueue.Enqueue(
-                        new NetMessage
-                        {
-                            MessageState = -1,
-                            byteCount = 0,
-                            data = null,
-                            sessionID = session.sessionID
-                        }
-                    );
-                    client.Shutdown(SocketShutdown.Both);
-                    client.Dispose();
-
-                    _sessionPool.Add(session);
-
-                    break;
+                    result = -1;
+                }
+                catch(Exception ex) when (ex is ClientShutDownException)
+                {
+                    Console.WriteLine($"Client Disconnected.");
+                    result = -1;
                 }
                 catch(Exception ex)
                 {
                     Console.WriteLine($"Unknown Exception. Message: {ex.Message}, {ex.StackTrace}");
-                    break;
+                    result = -1;
+                }
+                finally
+                {
+                    if(result == -1)
+                    {
+                        NetMessage netMsg = _netMessagePool.Rent();
+                        netMsg.MessageState = -1;
+                        netMsg.sessionID = session.sessionID;
+
+                        msgRecvQueue.Enqueue(netMsg);
+
+                        Socket socket;
+                        _socketMap.TryRemove(session.sessionID, out socket);
+
+                        socket.Close();
+                        socket.Dispose();
+
+                        _sessionPool.Add(session);
+                    }
                 }
             }
         }
