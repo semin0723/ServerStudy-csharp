@@ -142,6 +142,11 @@ namespace Network
                         _sessionPool.Add(session);
                     }
                 }
+
+                if(result == -1)
+                {
+                    break;
+                }
             }
         }
 
