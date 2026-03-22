@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace Network
 {
-    internal class DataCombinator
+    internal class DataCombinator : IDisposable
     {
         private readonly int _packetInfoSize;
         private readonly int _streamBufferSize;
@@ -12,14 +12,20 @@ namespace Network
         private int _startDataOffset;
         private int _endDataOffset;
         private PacketInfo _packetInfo;
-        private IMemoryOwner<byte> _byteStreamBuffer;
-        DataCombinator(int streamSize)
+        private IMemoryOwner<byte>? _byteStreamBuffer;
+        public DataCombinator(int streamSize)
         {
             _packetInfoSize = Marshal.SizeOf(typeof(PacketInfo));
             _streamBufferSize = streamSize;
             _startDataOffset = 0;
             _endDataOffset = 0;
             _byteStreamBuffer = MemoryPool<byte>.Shared.Rent(_streamBufferSize);
+        }
+
+        public void Dispose()
+        {
+            _byteStreamBuffer?.Dispose();
+            _byteStreamBuffer = null;
         }
 
         public bool ExtractPacket(out Packet? packet)

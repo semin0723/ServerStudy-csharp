@@ -18,6 +18,7 @@ namespace Network
         private readonly float _sendTimeoutInterval;
         private readonly int _tickFrame;
         private readonly float _tickInterval;
+        private readonly int _streamBufferSize;
         private int _disposed;
         private Task? _loopTask;
 
@@ -27,12 +28,15 @@ namespace Network
         private List<Session> _sessionPool;
         private ConcurrentDictionary<uint, Socket>? _socketMap;
 
-        public ConcurrentQueue<NetMessage>? msgRecvQueue { get; private set; }
+        private ConcurrentQueue<NetMessage> _msgRecvQueue;
         // Client에서 데이터를 전송 시 사용하는 SessionID는 1번 입니다.
         public ConcurrentQueue<NetMessage>? msgSendQueue { get; private set; }
         private ConcurrentQueue<SendSet>? pendingSendQueue;
 
         private NetMessageFactory _netMessagePool;
+        private Dictionary<uint, DataCombinator> _combinatorMap;
+
+        public ConcurrentQueue<Packet> recvPacketQueue { get; private set; }
 
         private class AcceptWithCancel
         {
@@ -47,16 +51,19 @@ namespace Network
             _sendTimeoutInterval = 0.2f;
             _bufferSize = 256;
             _bufferPoolDefaultSize = 30;
+            _streamBufferSize = 2048;
             _timerSystem = new TimerSystem();
             _disposed = 0;
             _acceptCancellationTokenSource = new CancellationTokenSource();
             _sessionPool = new List<Session>();
             _netMessagePool = new NetMessageFactory(100);
             _socketMap = new ConcurrentDictionary<uint, Socket>();
+            _combinatorMap = new Dictionary<uint, DataCombinator>();
 
-            msgRecvQueue = new ConcurrentQueue<NetMessage>();
+            _msgRecvQueue = new ConcurrentQueue<NetMessage>();
             msgSendQueue = new ConcurrentQueue<NetMessage>();
             pendingSendQueue = new ConcurrentQueue<SendSet>();
+            recvPacketQueue = new ConcurrentQueue<Packet>();
         }
 
         public bool Init(int port, int backlog)
@@ -93,7 +100,12 @@ namespace Network
                 _mainSocket.Connect(ip, port);
                 _socketMap.TryAdd(1, _mainSocket);
 
-                ThreadPool.QueueUserWorkItem(RecvAsync, new Session { socket = _mainSocket, sessionID = 1 });
+                ThreadPool.QueueUserWorkItem(RecvAsync, 
+                    new Session
+                    { 
+                        socket = _mainSocket, 
+                        sessionID = 1 
+                    });
             }
             catch(Exception ex)
             {
@@ -129,6 +141,7 @@ namespace Network
                 if(elapsedTime >= _tickInterval)
                 {
                     elapsedTime -= _tickInterval;
+                    DispatchData();
                     SendMessage();
                 }
             }

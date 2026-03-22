@@ -38,7 +38,7 @@ namespace Network
                     Session newSession;
                     if (_sessionPool.Count == 0)
                     {
-                        newSession = new Session 
+                        newSession = new Session
                         {
                             socket = clientSocket, 
                             sessionID = ++_globalSessionID 
@@ -60,7 +60,7 @@ namespace Network
                     netMsg.MessageState = 1;
                     netMsg.sessionID = newSession.sessionID;
 
-                    msgRecvQueue.Enqueue(netMsg);
+                    _msgRecvQueue.Enqueue(netMsg);
 
                     ThreadPool.QueueUserWorkItem(RecvAsync, newSession);
                 }
@@ -105,7 +105,7 @@ namespace Network
                     netMsg.byteCount = byteTransferred;
                     netMsg.data = recvBuffer;
 
-                    msgRecvQueue.Enqueue(netMsg);
+                    _msgRecvQueue.Enqueue(netMsg);
                 }
                 catch(Exception ex) when (ex is SocketException)
                 {
@@ -131,7 +131,7 @@ namespace Network
                         netMsg.MessageState = -1;
                         netMsg.sessionID = session.sessionID;
 
-                        msgRecvQueue.Enqueue(netMsg);
+                        _msgRecvQueue.Enqueue(netMsg);
 
                         Socket socket;
                         _socketMap.TryRemove(session.sessionID, out socket);

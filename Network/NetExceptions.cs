@@ -8,4 +8,8 @@ namespace Network
     {
         public ClientShutDownException(string message) : base(message) { }
     }
+    internal class NoBufferSpace : Exception
+    {
+        public NoBufferSpace(string message) : base(message) { }
+    }
 }
