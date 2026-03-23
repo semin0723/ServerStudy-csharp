@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -13,6 +14,7 @@ namespace Network
         public int MessageState;
         public uint sessionID;
         public int byteCount;
+        public Socket? socket;
         public IMemoryOwner<byte>? data;
 
         internal readonly NetMessageFactory _factory;
@@ -30,6 +32,7 @@ namespace Network
             MessageState = 0;
             sessionID = 0;
             byteCount = 0;
+            socket = null;
         }
 
         public void Return()

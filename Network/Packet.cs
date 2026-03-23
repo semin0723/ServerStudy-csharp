@@ -9,7 +9,7 @@ namespace Network
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct PacketInfo
     {
-        public int packetSequence;
+        public uint packetSequence;
         public short packetID;
         public int dataSize;
     }

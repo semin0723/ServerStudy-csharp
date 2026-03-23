@@ -33,32 +33,28 @@ namespace Network
             {
                 try
                 {
-                    var clientSocket = await listenSocket.AcceptAsync();
+                    var remoteSocket = await listenSocket.AcceptAsync();
 
                     Session newSession;
                     if (_sessionPool.Count == 0)
                     {
                         newSession = new Session
                         {
-                            socket = clientSocket, 
+                            socket = remoteSocket, 
                             sessionID = ++_globalSessionID 
                         };
                     }
                     else
                     {
                         newSession = _sessionPool.First<Session>();
-                        newSession.socket = clientSocket;
+                        newSession.socket = remoteSocket;
                         _sessionPool.RemoveAt(0);
-                    }
-                    bool res = _socketMap.TryAdd(newSession.sessionID, clientSocket);
-                    if(!res)
-                    {
-                        _socketMap[newSession.sessionID] = clientSocket;
                     }
 
                     NetMessage netMsg = _netMessagePool.Rent();
                     netMsg.MessageState = 1;
                     netMsg.sessionID = newSession.sessionID;
+                    netMsg.socket = remoteSocket;
 
                     _msgRecvQueue.Enqueue(netMsg);
 
@@ -132,12 +128,6 @@ namespace Network
                         netMsg.sessionID = session.sessionID;
 
                         _msgRecvQueue.Enqueue(netMsg);
-
-                        Socket socket;
-                        _socketMap.TryRemove(session.sessionID, out socket);
-
-                        socket.Close();
-                        socket.Dispose();
 
                         _sessionPool.Add(session);
                     }

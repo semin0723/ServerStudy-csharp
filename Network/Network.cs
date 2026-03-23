@@ -26,15 +26,15 @@ namespace Network
         private CancellationTokenSource _acceptCancellationTokenSource;
 
         private List<Session> _sessionPool;
-        private ConcurrentDictionary<uint, Socket>? _socketMap;
 
         private ConcurrentQueue<NetMessage> _msgRecvQueue;
-        // Client에서 데이터를 전송 시 사용하는 SessionID는 1번 입니다.
-        public ConcurrentQueue<NetMessage>? msgSendQueue { get; private set; }
+        public ConcurrentQueue<NetMessage> _msgSendQueue;
         private ConcurrentQueue<SendSet>? pendingSendQueue;
 
         private NetMessageFactory _netMessagePool;
         private Dictionary<uint, DataCombinator> _combinatorMap;
+        private Dictionary<uint, uint> _packetSequenceMap;
+        private Dictionary<uint, Socket> _socketMap;
 
         public ConcurrentQueue<Packet> recvPacketQueue { get; private set; }
 
@@ -57,11 +57,12 @@ namespace Network
             _acceptCancellationTokenSource = new CancellationTokenSource();
             _sessionPool = new List<Session>();
             _netMessagePool = new NetMessageFactory(100);
-            _socketMap = new ConcurrentDictionary<uint, Socket>();
+            _socketMap = new Dictionary<uint, Socket>();
             _combinatorMap = new Dictionary<uint, DataCombinator>();
+            _packetSequenceMap = new Dictionary<uint, uint>();
 
             _msgRecvQueue = new ConcurrentQueue<NetMessage>();
-            msgSendQueue = new ConcurrentQueue<NetMessage>();
+            _msgSendQueue = new ConcurrentQueue<NetMessage>();
             pendingSendQueue = new ConcurrentQueue<SendSet>();
             recvPacketQueue = new ConcurrentQueue<Packet>();
         }
@@ -150,60 +151,39 @@ namespace Network
 
         async void SendMessage()
         {
-            float elapsedTime = 0;
-            while (pendingSendQueue.Count > 0)
+            while (_msgSendQueue.Count > 0)
             {
-                if(elapsedTime >= _sendTimeoutInterval)
+                NetMessage sendMessage;
+                if (_msgSendQueue.TryDequeue(out sendMessage))
                 {
-                    break;
+                    Socket sender;
+                    if(_socketMap.TryGetValue(sendMessage.sessionID, out sender))
+                    {
+                        try
+                        {
+                            var byteTransferred = await sender.SendAsync(sendMessage.data.Memory, SocketFlags.None);
+                            Console.WriteLine($"{byteTransferred}byte sent.");
+                        }
+                        catch (Exception ex) when (ex is SocketException)
+                        {
+                            SocketException socketException = ex as SocketException;
+                            Console.WriteLine($"Socket Exception. Message: {ex.Message}, SocketError No. {socketException.ErrorCode}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Unknown Exception. Message: {ex.Message}, {ex.StackTrace}");
+                        }
+                        finally
+                        {
+                            sendMessage.Return();
+                        }
+                    }
+                    sendMessage.Return();
                 }
-
-                SendSet ss;
-                bool res = pendingSendQueue.TryDequeue(out ss);
-                if (res == false)
+                else
                 {
                     Thread.Sleep(1);
-                    continue;
                 }
-
-                ThreadPool.QueueUserWorkItem(SendAsync, ss);
-
-                elapsedTime += _timerSystem.deltaTime;
-            }
-
-            elapsedTime = 0f;
-
-            while(msgSendQueue.Count > 0)
-            {
-                if (elapsedTime >= _sendTimeoutInterval)
-                {
-                    break;
-                }
-
-                NetMessage message;
-                bool res = msgSendQueue.TryDequeue(out message);
-                if (res == false)
-                {
-                    Thread.Sleep(1);
-                    continue;
-                }
-                Socket sender;
-                res = _socketMap.TryGetValue(message.sessionID, out sender);
-                if(!res)
-                {
-                    Console.WriteLine($"Invalid SessionID. ID: {message.sessionID}");
-                    continue;
-                }
-
-                /*SendSet ss = new SendSet()
-                {
-                    senderSocket = sender,
-                    data = message.data,
-                };*/
-
-                //ThreadPool.QueueUserWorkItem(SendAsync, ss);
-
-                elapsedTime += _timerSystem.deltaTime;
             }
         }
     }
