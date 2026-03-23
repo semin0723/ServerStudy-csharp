@@ -15,3 +15,5 @@
 - [코드 개선하기 - 버퍼 풀 추가](https://www.notion.so/32705fa3c67e80849741e2f77d448ce8?pvs=21)
 
 - [코드 개선하기 - 데이터 가공 방식 변경](https://www.notion.so/32805fa3c67e80e09261e255d8c6dd46?pvs=21)
+
+- [코드 개선하기 - 데이터 전송](https://www.notion.so/32c05fa3c67e80f5a60ed21865fb1977?pvs=21)
