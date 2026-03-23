@@ -99,7 +99,8 @@ namespace Network
             {
                 _mainSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 _mainSocket.Connect(ip, port);
-                _socketMap.TryAdd(1, _mainSocket);
+                _socketMap.Add(1, _mainSocket);
+                _packetSequenceMap.Add(1, 0);
 
                 ThreadPool.QueueUserWorkItem(RecvAsync, 
                     new Session
@@ -161,7 +162,8 @@ namespace Network
                     {
                         try
                         {
-                            var byteTransferred = await sender.SendAsync(sendMessage.data.Memory, SocketFlags.None);
+                            var sliced = sendMessage.data.Memory.Slice(0, sendMessage.byteCount);
+                            var byteTransferred = await sender.SendAsync(sliced, SocketFlags.None);
                             Console.WriteLine($"{byteTransferred}byte sent.");
                         }
                         catch (Exception ex) when (ex is SocketException)

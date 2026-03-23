@@ -22,13 +22,16 @@ namespace Network
                     if(message.MessageState == 1)
                     {
                         _combinatorMap.Add(sessionID, new DataCombinator(_streamBufferSize));
+                        _packetSequenceMap.Add(sessionID, 0);
                         _socketMap.Add(sessionID, message.socket);
                     }
                     else if(message.MessageState == -1)
                     {
                         _combinatorMap.Remove(sessionID);
                         Socket remoteSocket;
+                        _packetSequenceMap.Remove(sessionID);
                         _socketMap.Remove(sessionID, out remoteSocket);
+
                         remoteSocket.Close();
                         remoteSocket.Dispose();
                     }
@@ -43,6 +46,7 @@ namespace Network
                         Packet combinated;
                         if(combinator.ExtractPacket(out combinated))
                         {
+                            combinated.sessionID = sessionID;
                             recvPacketQueue.Enqueue(combinated);
                         }
                     }

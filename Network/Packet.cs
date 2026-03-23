@@ -18,5 +18,6 @@ namespace Network
     {
         public PacketInfo packetInfo;
         public IMemoryOwner<byte>? owner;
+        public uint sessionID;
     }
 }
