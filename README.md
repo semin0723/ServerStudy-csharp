@@ -1,4 +1,4 @@
-# C# 서버 만들기
+# C# 서버 라이브러리 만들기
 
 이전에 C++을 사용하여 IOCP서버 라이브러리를 제작해본 경험이 있습니다.
 
@@ -17,3 +17,7 @@
 - [코드 개선하기 - 데이터 가공 방식 변경](https://www.notion.so/32805fa3c67e80e09261e255d8c6dd46?pvs=21)
 
 - [코드 개선하기 - 데이터 전송](https://www.notion.so/32c05fa3c67e80f5a60ed21865fb1977?pvs=21)
+
+- [데이터 저장 버퍼 부하 수정](https://www.notion.so/32c05fa3c67e8002b73dc81daaba9b9a?pvs=21)
+
+- [코드 개선 - 메시지 처리](https://www.notion.so/32d05fa3c67e8057b478c5bf849eae79?pvs=21)
