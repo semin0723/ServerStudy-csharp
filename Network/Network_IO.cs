@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Network
 {
@@ -19,21 +20,20 @@ namespace Network
 
         private uint _globalSessionID = 0;
 
-        async void AcceptClientAsync(object? sender)
+        async Task AcceptClientAsync(AcceptWithCancel sender)
         {
-            var senderData = sender as AcceptWithCancel;
-            if (senderData == null)
+            if (sender == null)
             {
                 throw new InvalidOperationException("sender is null.");
             }
 
-            Socket listenSocket = senderData.socket;
+            Socket listenSocket = sender.socket;
 
             while (true)
             {
                 try
                 {
-                    var remoteSocket = await listenSocket.AcceptAsync();
+                    var remoteSocket = await listenSocket.AcceptAsync(cancellationToken: sender.token);
 
                     Session newSession;
                     if (_sessionPool.Count == 0)
@@ -56,9 +56,9 @@ namespace Network
                     netMsg.sessionID = newSession.sessionID;
                     netMsg.socket = remoteSocket;
 
-                    _msgRecvQueue.Enqueue(netMsg);
+                    await _connectionEventChannel.Writer.WriteAsync(netMsg);
 
-                    ThreadPool.QueueUserWorkItem(RecvAsync, newSession);
+                    _ = Task.Run(() => RecvAsync(newSession));
                 }
                 catch (Exception ex) when (ex is OperationCanceledException)
                 {
@@ -73,13 +73,12 @@ namespace Network
             }
         }
 
-        async void RecvAsync(object? sender)
+        async Task RecvAsync(Session session)
         {
-            if(sender == null)
+            if(session == null)
             {
                 throw new InvalidOperationException("sender is null.");
             }
-            Session session = sender as Session;
             Socket client = session.socket;
 
             while(true)
@@ -101,7 +100,7 @@ namespace Network
                     netMsg.byteCount = byteTransferred;
                     netMsg.data = recvBuffer;
 
-                    _msgRecvQueue.Enqueue(netMsg);
+                    await _recvChannel.Writer.WriteAsync(netMsg);
                 }
                 catch(Exception ex) when (ex is SocketException)
                 {
@@ -127,7 +126,7 @@ namespace Network
                         netMsg.MessageState = -1;
                         netMsg.sessionID = session.sessionID;
 
-                        _msgRecvQueue.Enqueue(netMsg);
+                        await _connectionEventChannel.Writer.WriteAsync(netMsg);
 
                         _sessionPool.Add(session);
                     }
@@ -140,26 +139,38 @@ namespace Network
             }
         }
 
-        async void SendAsync(object? sender)
+        async Task SendAsync()
         {
-            SendSet sendData = sender as SendSet;
+            await foreach(NetMessage sendMessage in _sendChannel.Reader.ReadAllAsync())
+            {
+                try
+                {
+                    uint sessionID = sendMessage.sessionID;
+                    if (_socketMap.TryGetValue(sessionID, out var socket))
+                    {
+                        var sliced = sendMessage.data.Memory.Slice(0, sendMessage.byteCount);
+                        var byteTransferred = await socket.SendAsync(sliced, SocketFlags.None);
+                        Console.WriteLine($"{byteTransferred}byte sent.");
+                    }
+                    else
+                    {
+                        throw new SocketAlreadyClosed("이미 종료된 소켓입니다.");
+                    }
+                }
+                catch (Exception ex) when (ex is SocketException)
+                {
+                    SocketException socketException = ex as SocketException;
+                    Console.WriteLine($"Socket Exception. Message: {ex.Message}, SocketError No. {socketException.ErrorCode}");
 
-            Socket socket = sendData.senderSocket;
-            try
-            {
-                var byteTransferred = await socket.SendAsync(sendData.data, SocketFlags.None);
-                Console.WriteLine($"{byteTransferred}byte sent.");
-            }
-            catch (Exception ex) when (ex is SocketException)
-            {
-                SocketException socketException = ex as SocketException;
-                Console.WriteLine($"Socket Exception. Message: {ex.Message}, SocketError No. {socketException.ErrorCode}");
-
-                pendingSendQueue.Enqueue(sendData);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Unknown Exception. Message: {ex.Message}, {ex.StackTrace}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Unknown Exception. Message: {ex.Message}, {ex.StackTrace}");
+                }
+                finally
+                {
+                    sendMessage.Return();
+                }
             }
         }
     }

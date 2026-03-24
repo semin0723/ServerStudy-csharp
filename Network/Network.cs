@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Channels;
 
 namespace Network
 {
@@ -21,22 +22,22 @@ namespace Network
         private readonly int _streamBufferSize;
         private int _disposed;
         private Task? _loopTask;
+        private Task? _acceptTask;
 
         private Socket? _mainSocket;
         private CancellationTokenSource _acceptCancellationTokenSource;
 
         private List<Session> _sessionPool;
 
-        private ConcurrentQueue<NetMessage> _msgRecvQueue;
-        public ConcurrentQueue<NetMessage> _msgSendQueue;
-        private ConcurrentQueue<SendSet>? pendingSendQueue;
+        private Channel<NetMessage> _connectionEventChannel;
+        private Channel<NetMessage> _recvChannel;
+        private Channel<NetMessage> _sendChannel;
+        public Channel<Packet> packetChannel { get; private set; }
 
         private NetMessageFactory _netMessagePool;
         private Dictionary<uint, DataCombinator> _combinatorMap;
         private Dictionary<uint, uint> _packetSequenceMap;
         private Dictionary<uint, Socket> _socketMap;
-
-        public ConcurrentQueue<Packet> recvPacketQueue { get; private set; }
 
         private class AcceptWithCancel
         {
@@ -61,10 +62,34 @@ namespace Network
             _combinatorMap = new Dictionary<uint, DataCombinator>();
             _packetSequenceMap = new Dictionary<uint, uint>();
 
-            _msgRecvQueue = new ConcurrentQueue<NetMessage>();
-            _msgSendQueue = new ConcurrentQueue<NetMessage>();
-            pendingSendQueue = new ConcurrentQueue<SendSet>();
-            recvPacketQueue = new ConcurrentQueue<Packet>();
+            _connectionEventChannel = Channel.CreateUnbounded<NetMessage>(
+                new UnboundedChannelOptions
+                {
+                    SingleReader = true,
+                    SingleWriter = false
+                });
+
+            _recvChannel = Channel.CreateUnbounded<NetMessage>(
+                new UnboundedChannelOptions
+                {
+                    SingleWriter = false,
+                    SingleReader = true
+                });
+
+            _sendChannel = Channel.CreateBounded<NetMessage>(
+                new BoundedChannelOptions(1000)
+                {
+                    SingleWriter = false,
+                    SingleReader = true,
+                    FullMode = BoundedChannelFullMode.Wait
+                });
+
+            packetChannel = Channel.CreateBounded<Packet>(
+                new BoundedChannelOptions(1000)
+                {
+                    SingleReader = true,
+                    SingleWriter = true
+                });
         }
 
         public bool Init(int port, int backlog)
@@ -83,11 +108,11 @@ namespace Network
                 return false;
             }
 
-            ThreadPool.QueueUserWorkItem(AcceptClientAsync, new AcceptWithCancel 
+            _acceptTask = Task.Run(() => AcceptClientAsync(new AcceptWithCancel 
             { 
                 socket = _mainSocket, 
                 token = _acceptCancellationTokenSource.Token
-            });
+            }));
 
             return true;
         }
@@ -102,12 +127,13 @@ namespace Network
                 _socketMap.Add(1, _mainSocket);
                 _packetSequenceMap.Add(1, 0);
 
-                ThreadPool.QueueUserWorkItem(RecvAsync, 
-                    new Session
-                    { 
-                        socket = _mainSocket, 
-                        sessionID = 1 
-                    });
+                Task.Run(() => RecvAsync(new Session
+                    {
+                        socket = _mainSocket,
+                        sessionID = 1
+                    })
+                );
+
             }
             catch(Exception ex)
             {
@@ -130,63 +156,36 @@ namespace Network
                 Interlocked.Increment(ref _disposed);
                 _loopTask?.Wait();
                 _loopTask = null;
+                _acceptTask?.Wait();   
+                _acceptTask = null;
             }
         }
 
         async Task RunAsync()
         {
-            float elapsedTime = 0;
+            _ = Task.Run(SendAsync);
+            //float elapsedTime = 0;
             while(Interlocked.Equals(_disposed, 0))
             {
-                _timerSystem.Update();
+                /*_timerSystem.Update();
                 elapsedTime += _timerSystem.deltaTime;
-                if(elapsedTime >= _tickInterval)
+                if (elapsedTime >= _tickInterval)
                 {
                     elapsedTime -= _tickInterval;
                     DispatchData();
                     SendMessage();
+                }*/
+                try
+                {
+                    await DispatchData();
+                    await Task.Delay(TimeSpan.FromMilliseconds(_tickInterval));
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine($"Exception caused. msg: {ex.Message}, {ex.StackTrace}");
                 }
             }
             _mainSocket.Dispose();
-        }
-
-        async void SendMessage()
-        {
-            while (_msgSendQueue.Count > 0)
-            {
-                NetMessage sendMessage;
-                if (_msgSendQueue.TryDequeue(out sendMessage))
-                {
-                    Socket sender;
-                    if(_socketMap.TryGetValue(sendMessage.sessionID, out sender))
-                    {
-                        try
-                        {
-                            var sliced = sendMessage.data.Memory.Slice(0, sendMessage.byteCount);
-                            var byteTransferred = await sender.SendAsync(sliced, SocketFlags.None);
-                            Console.WriteLine($"{byteTransferred}byte sent.");
-                        }
-                        catch (Exception ex) when (ex is SocketException)
-                        {
-                            SocketException socketException = ex as SocketException;
-                            Console.WriteLine($"Socket Exception. Message: {ex.Message}, SocketError No. {socketException.ErrorCode}");
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Unknown Exception. Message: {ex.Message}, {ex.StackTrace}");
-                        }
-                        finally
-                        {
-                            sendMessage.Return();
-                        }
-                    }
-                    sendMessage.Return();
-                }
-                else
-                {
-                    Thread.Sleep(1);
-                }
-            }
         }
     }
 }

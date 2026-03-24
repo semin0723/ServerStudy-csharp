@@ -2,65 +2,65 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Net.Sockets;
+using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Network
 {
     public partial class NetBase
     {
-        private void DispatchData()
+        private async Task DispatchData()
         {
-            while (_msgRecvQueue.Count > 0)
+            while(_connectionEventChannel.Reader.TryRead(out var msg))
             {
-                NetMessage message;
-                if(_msgRecvQueue.TryDequeue(out message))
+                uint sessionID = msg.sessionID;
+                if (msg.MessageState == 1)
                 {
-                    uint sessionID = message.sessionID;
-                    if(message.MessageState == 1)
-                    {
-                        _combinatorMap.Add(sessionID, new DataCombinator(_streamBufferSize));
-                        _packetSequenceMap.Add(sessionID, 0);
-                        _socketMap.Add(sessionID, message.socket);
-                    }
-                    else if(message.MessageState == -1)
-                    {
-                        _combinatorMap.Remove(sessionID);
-                        Socket remoteSocket;
-                        _packetSequenceMap.Remove(sessionID);
-                        _socketMap.Remove(sessionID, out remoteSocket);
+                    _combinatorMap.Add(sessionID, new DataCombinator(_streamBufferSize));
+                    _packetSequenceMap.Add(sessionID, 0);
+                    _socketMap.Add(sessionID, msg.socket);
+                }
+                else if (msg.MessageState == -1)
+                {
+                    _combinatorMap.Remove(sessionID);
+                    Socket remoteSocket;
+                    _packetSequenceMap.Remove(sessionID);
+                    _socketMap.Remove(sessionID, out remoteSocket);
 
-                        remoteSocket.Close();
-                        remoteSocket.Dispose();
-                    }
-                    else
-                    {
-                        DataCombinator combinator = _combinatorMap[message.sessionID];
-                        if(!combinator.InsertMessage(message))
-                        {
-                            throw new NoBufferSpace("No bufferSpace.");
-                        }
+                    remoteSocket.Close();
+                    remoteSocket.Dispose();
+                }
+                msg.Return();
+            }
 
-                        Packet combinated;
-                        if(combinator.ExtractPacket(out combinated))
-                        {
-                            combinated.sessionID = sessionID;
-                            recvPacketQueue.Enqueue(combinated);
-                        }
+            while (_recvChannel.Reader.TryRead(out var msg))
+            {
+                uint sessionID = msg.sessionID;
+                DataCombinator combinator;
+                if(_combinatorMap.TryGetValue(sessionID, out combinator))
+                {
+                    if (!combinator.InsertMessage(msg))
+                    {
+                        throw new NoBufferSpace("No bufferSpace.");
+                    }
+
+                    Packet combinated;
+                    while (combinator.ExtractPacket(out combinated))
+                    {
+                        combinated.sessionID = sessionID;
+                        //recvPacketQueue.Enqueue(combinated);
+                        await packetChannel.Writer.WriteAsync(combinated);
                     }
                 }
-                else
-                {
-                    Thread.Sleep(1);
-                }
+                msg.Return();
             }
         }
 
-        
-
-        public void RegistSendData<IData>(uint sessionID, short packetID, IData data) where IData : class
+        public async Task RegistSendData<IData>(uint sessionID, short packetID, IData data) where IData : class
         {
             string jsonData = JsonSerializer.Serialize(data);
             byte[] serialized = Encoding.UTF8.GetBytes(jsonData);
@@ -86,7 +86,7 @@ namespace Network
             newMessage.byteCount = totalSize;
             newMessage.data = memoryOwner;
 
-            _msgSendQueue.Enqueue(newMessage);
+            await _sendChannel.Writer.WriteAsync(newMessage);
         }
     }
 }

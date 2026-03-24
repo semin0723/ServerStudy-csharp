@@ -12,4 +12,9 @@ namespace Network
     {
         public NoBufferSpace(string message) : base(message) { }
     }
+
+    internal class SocketAlreadyClosed : Exception
+    {
+        public SocketAlreadyClosed(string message) : base(message) { }
+    }
 }
