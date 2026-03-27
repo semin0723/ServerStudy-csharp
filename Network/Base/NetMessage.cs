@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 
-namespace Network
+namespace Network.Base
 {
     public class NetMessage
     {

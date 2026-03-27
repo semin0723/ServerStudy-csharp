@@ -1,8 +1,9 @@
-﻿using System;
+﻿using Network.Base;
+using System;
 using System.Buffers;
 using System.Runtime.InteropServices;
 
-namespace Network
+namespace Network.NetworkUtility
 {
     internal class DataCombinator : IDisposable
     {

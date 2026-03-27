@@ -8,6 +8,8 @@ using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Channels;
+using Network.NetworkUtility;
+using Network.Base;
 
 namespace Network
 {
@@ -164,17 +166,8 @@ namespace Network
         async Task RunAsync()
         {
             _ = Task.Run(SendAsync);
-            //float elapsedTime = 0;
             while(Interlocked.Equals(_disposed, 0))
             {
-                /*_timerSystem.Update();
-                elapsedTime += _timerSystem.deltaTime;
-                if (elapsedTime >= _tickInterval)
-                {
-                    elapsedTime -= _tickInterval;
-                    DispatchData();
-                    SendMessage();
-                }*/
                 try
                 {
                     await DispatchData();
