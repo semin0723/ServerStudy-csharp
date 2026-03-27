@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 
-namespace Network.Base
+namespace Network.DataObject
 {
     internal class Session
     {

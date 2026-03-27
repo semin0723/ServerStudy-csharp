@@ -1,4 +1,5 @@
 ﻿using Network.Base;
+using Network.DataObject;
 using System;
 using System.Buffers;
 using System.Runtime.InteropServices;

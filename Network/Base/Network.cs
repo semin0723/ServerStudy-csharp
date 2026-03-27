@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Threading.Channels;
 using Network.NetworkUtility;
 using Network.Base;
+using Network.DataObject;
 
 namespace Network
 {

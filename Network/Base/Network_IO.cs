@@ -1,4 +1,5 @@
 ﻿using Network.Base;
+using Network.DataObject;
 using Network.Exception;
 using System;
 using System.Buffers;
