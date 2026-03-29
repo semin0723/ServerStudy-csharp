@@ -21,3 +21,5 @@
 - [데이터 저장 버퍼 부하 수정](https://www.notion.so/32c05fa3c67e8002b73dc81daaba9b9a?pvs=21)
 
 - [코드 개선 - 메시지 처리](https://www.notion.so/32d05fa3c67e8057b478c5bf849eae79?pvs=21)
+
+- [구조 확장 - 직렬화](https://www.notion.so/32e05fa3c67e8068bf65c0f04f34ee61?pvs=21)
