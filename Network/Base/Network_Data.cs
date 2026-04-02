@@ -1,6 +1,7 @@
 ﻿using Network.Base;
 using Network.DataObject;
 using Network.NetworkUtility;
+using Network.Exceptions;
 using System;
 using System.Buffers;
 using System.Collections.Generic;

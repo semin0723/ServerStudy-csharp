@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Network.Exception
+namespace Network.Exceptions
 {
     internal class ClientShutDownException : Exception
     {

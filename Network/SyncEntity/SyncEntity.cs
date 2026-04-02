@@ -7,18 +7,23 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 
-namespace Network.SyncEntity
+namespace Network.Entity
 {
-    public class SyncEntity
+    /*public class SyncEntity
     {
         private readonly static Dictionary<Type, List<PropertyInfo>> _syncPropertyPerType = new();
         private PropertyData _propertyData = new();
         private List<PropertyInfo> _syncProperties;
         private bool _isSync;
 
+        private Guid _guid;
+
         public bool IsSync
         {
-            get => _isSync;
+            get 
+            {
+                return _isSync;
+            }
             set
             {
                 _isSync = value;
@@ -39,6 +44,8 @@ namespace Network.SyncEntity
 
         public SyncEntity()
         {
+            _guid = Guid.NewGuid();
+
             _propertyData.propertyName = new List<string>();
             _propertyData.propertyValue = new List<object?>();
 
@@ -52,7 +59,7 @@ namespace Network.SyncEntity
             }
         }
 
-        public string Serialize()
+        public byte[]? Serialize()
         {
             if (_propertyData.propertyValue.Count < 1)
             {
@@ -69,9 +76,10 @@ namespace Network.SyncEntity
                 }
             }
 
-            string json = JsonSerializer.Serialize(_propertyData);
 
-            return json;
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(_propertyData);
+
+            return bytes;
         }
 
         public void Deserialize(string json)
@@ -86,5 +94,5 @@ namespace Network.SyncEntity
                 property.SetValue(this, convertedValue);
             }
         }
-    }
+    }*/
 }

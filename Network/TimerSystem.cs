@@ -11,10 +11,24 @@ namespace Network
         private long _prevTick;
         private long _nowTick;
 
-        public float deltaTime 
+        public static float deltaTime 
         {
             get;
             private set;
+        }
+
+        private static TimerSystem _instance;
+
+        public static TimerSystem Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = new TimerSystem();
+                }
+                return _instance;
+            }
         }
 
         public void Init()
