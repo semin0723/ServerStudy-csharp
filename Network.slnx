@@ -1,6 +1,8 @@
 <Solution>
-  <Project Path="Generator/Generator.csproj" />
+  <Project Path="Generator/Client/Generator.Client.csproj" />
+  <Project Path="Generator/Server/Generator.Server.csproj" />
   <Project Path="NetTest/NetTest.csproj" Id="680e72fc-8261-440c-b3ff-a10ff3eb23c0" />
   <Project Path="NetTest_Client/NetTest_Client.csproj" Id="34b66813-de02-40ef-b280-ea77e087ffa4" />
   <Project Path="Network/Network.csproj" />
+  <Project Path="UnityNetwork/UnityNetwork.csproj" Id="3975d8f1-adf4-43c6-985f-e3fb827121b8" />
 </Solution>

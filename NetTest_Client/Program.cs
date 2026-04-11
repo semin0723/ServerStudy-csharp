@@ -1,6 +1,6 @@
 ﻿using Network;
 using Network.DataObject;
-using Network.NetworkUtility;
+using Network.NetworkUtility.RPC;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
@@ -49,16 +49,20 @@ public class TestData
 }
 
 
-public partial class RPCTestClass
+public partial class RPCTestClass : IRPCCallable
 {
     private readonly NetBase _net;
-    public Guid _guid;
+    public Guid Guid { get; private set; }
+    public void GuidReset()
+    {
+        Guid = Guid.NewGuid();
+    }
 
     public RPCTestClass(NetBase net)
     {
         _net = net;
-        _guid = Guid.NewGuid();
-        RPCManager.RegistRPC(this.GetType());
+        GuidReset();
+        RPCManager.RegistRPC(this);
     }
 
     [Server]

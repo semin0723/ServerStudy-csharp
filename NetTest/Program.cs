@@ -1,10 +1,11 @@
 ﻿using Network;
 using Network.DataObject;
-using Network.NetworkUtility;
+using Network.NetworkUtility.RPC;
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
 namespace NetTest;
@@ -85,37 +86,41 @@ public class TestData
     public string Name { get; set; }
 }
 
-public partial class RPCTestClass
+public partial class RPCTestClass : IRPCCallable
 {
     private readonly NetBase _net;
-    public Guid _guid;
+    public Guid Guid { get; private set; }
+    public void GuidReset()
+    {
+        Guid = Guid.NewGuid();
+    }
 
     public RPCTestClass(NetBase net)
     {
         _net = net;
-        _guid = Guid.NewGuid();
-        RPCManager.RegistRPC(this.GetType());
+        GuidReset();
+        RPCManager.RegistRPC(this);
 
     }
 
-    [ServerReceive]
+    [Server]
     public void TestRPC()
     { 
         Console.WriteLine("Client Called TestRPC Function.");
     }
 
-    [ServerReceive]
+    [Server]
     public void TestRPC2(int a, int b)
     {
         Console.WriteLine($"Client Called TestRPC2 Function.{a}, {b}");
     }
 
-    [ServerReceive]
+    [Server]
     public void ServerRPC(string changed, int b, double c)
     {
         Console.WriteLine("");
     }
-    [ServerReceive]
+    [Server]
     public void TestRPC3(TestData testData)
     {
 

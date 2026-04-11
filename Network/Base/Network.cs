@@ -129,6 +129,7 @@ namespace Network
                 _mainSocket.Connect(ip, port);
                 _socketMap.Add(1, _mainSocket);
                 _packetSequenceMap.Add(1, 0);
+                _combinatorMap.Add(1, new DataCombinator(_streamBufferSize));
 
                 Task.Run(() => RecvAsync(new Session
                     {
@@ -157,6 +158,7 @@ namespace Network
             if (_loopTask != null)
             {
                 Interlocked.Increment(ref _disposed);
+                _acceptCancellationTokenSource.Cancel();
                 _loopTask?.Wait();
                 _loopTask = null;
                 _acceptTask?.Wait();   

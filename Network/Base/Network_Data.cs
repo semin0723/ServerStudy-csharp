@@ -30,11 +30,11 @@ namespace Network
                 }
                 else if (msg.MessageState == -1)
                 {
-                    _combinatorMap.Remove(sessionID);
-                    Socket remoteSocket;
+                    _combinatorMap.Remove(sessionID, out var combinator);
                     _packetSequenceMap.Remove(sessionID);
-                    _socketMap.Remove(sessionID, out remoteSocket);
+                    _socketMap.Remove(sessionID, out var remoteSocket);
 
+                    combinator.Dispose();
                     remoteSocket.Close();
                     remoteSocket.Dispose();
                 }

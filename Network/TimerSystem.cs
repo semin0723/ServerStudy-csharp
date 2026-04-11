@@ -17,7 +17,7 @@ namespace Network
             private set;
         }
 
-        private static TimerSystem _instance;
+        private static TimerSystem? _instance;
 
         public static TimerSystem Instance
         {
@@ -43,7 +43,5 @@ namespace Network
             long deltaTick = _nowTick - _prevTick;
             deltaTime = (float)deltaTick / Stopwatch.Frequency;
         }
-
-
     }
 }

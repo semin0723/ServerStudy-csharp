@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Generator
 {
     [Generator]
-    public class ServerReceiveGenerator : IIncrementalGenerator
+    public class RPCGenerator : IIncrementalGenerator
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
@@ -48,7 +48,7 @@ namespace Generator
             }
 
             if (symbol is IMethodSymbol methodSymbol &&
-                methodSymbol.GetAttributes().Any(attr => attr.AttributeClass.Name == "ServerReceiveAttribute" || attr.AttributeClass.Name == "ServerReceive"))
+                methodSymbol.GetAttributes().Any(attr => attr.AttributeClass.Name == "ServerAttribute" || attr.AttributeClass.Name == "Server"))
             {
                 return methodSymbol;
             }
@@ -61,15 +61,20 @@ namespace Generator
             var className = methods[0].ContainingType.Name;
 
             var stringbuilder = new StringBuilder();
-            stringbuilder.AppendLine($@"using System;
-using System.Buffers;
-using Network.NetworkUtility;
-using Network.DataObject;
-
-namespace {methodNamespace}
-{{
-    public partial class {className}
-    {{");
+            stringbuilder.AppendLine(
+$"using System;\n" +
+$"using System.Buffers;\n" +
+$"using Network.NetworkUtility;\n" +
+$"using Network.DataObject;\n"
+);
+            stringbuilder.AppendLine(
+$"namespace {methodNamespace}" +
+$"{{"
+);
+            stringbuilder.AppendLine(
+$"\tpublic partial class {className}\n" +
+$"\t{{"
+);
             foreach (var method in methods)
             {
                 var methodName = method.Name;
@@ -91,51 +96,48 @@ namespace {methodNamespace}
                     methodName += $"<{genericArgs}>";
                     typeParameterKind = string.Join(" ", method.TypeParameters.Select(tp => $"where {tp.Name} : {GetConstraintType(tp)}"));
                 }
+                stringbuilder.AppendLine($"\t\tpublic partial {returnType} {methodName}({parameters}) {typeParameterKind}");
+                stringbuilder.AppendLine("\t\t{");
+                // Add Logic
+                string source = $@"
+            FunctionCallInfo info = new FunctionCallInfo
+            {{
+                Guid = _guid,
+                FunctionName = ""{methodName}""
+            }};";
 
-                string byteParameter = string.Empty;
-                string deserializeCall = string.Empty;
+                stringbuilder.AppendLine(source);
                 if (parameters.Length > 0)
                 {
-                    byteParameter = "byte[]? data = null";
-
-                    deserializeCall = $@"
-            using var stream = new MemoryStream(data);
-            using var reader = new BinaryReader(stream);";
+                    stringbuilder.AppendLine(
+$"\t\t\tusing var stream = new MemoryStream();\n" +
+$"\t\t\tusing var writer = new BinaryWriter(stream);");
                     foreach (var parameter in method.Parameters)
                     {
                         if (parameter.Type is INamedTypeSymbol namedType && namedType.TypeKind == TypeKind.Class && namedType.SpecialType == SpecialType.None)
                         {
                             var members = namedType.GetMembers().OfType<IPropertySymbol>();
-                            deserializeCall += $@"
-            {parameter.Type.Name} {parameter.Name}_value = new {parameter.Type.Name}
-            {{";
                             foreach (var member in members)
                             {
-                                deserializeCall += $@"
-                {member.Name} = reader.Read{member.Type.SpecialType.ToString().Replace("System_", "")}(),";
+                                stringbuilder.AppendLine(
+$"\t\t\twriter.Write({parameter.Name}.{member.Name});");
                             }
-                            deserializeCall += $"\n\t\t\t}};";
                         }
                         else
                         {
-                            deserializeCall += $@"
-            var {parameter.Name}_value = reader.Read{parameter.Type.SpecialType.ToString().Replace("System_", "")}();";
+                            stringbuilder.AppendLine(
+$"\t\t\twriter.Write({parameter.Name});");
                         }
+                        
                     }
-                    deserializeCall += $@"
-            {methodName}({string.Join(", ", method.Parameters.Select(p => $"{p.Name}_value"))});";
+                    stringbuilder.AppendLine(
+$"\t\t\twriter.Flush();");
+                    stringbuilder.AppendLine($@"
+            info.ParameterData = stream.ToArray();");
                 }
-                else
-                {
-                    deserializeCall = $@"
-            {methodName}();";
-                }
-
-                stringbuilder.AppendLine($"\t\tpublic void {methodName}_RemoteCall({byteParameter}) {typeParameterKind}\n\t\t{{");
-                // if has parameters
-                stringbuilder.AppendLine(deserializeCall);
-
-
+                stringbuilder.AppendLine(
+$"\t\t\t_net.RegistSendData<FunctionCallInfo>(1, 10, info);\n"
+);
 
                 if (returnType != "void")
                 {
@@ -143,13 +145,19 @@ namespace {methodNamespace}
 $"\t\t\treturn default({returnType});"
 );
                 }
-                stringbuilder.AppendLine($"\t\t}}");
+                stringbuilder.AppendLine(
+"\t\t}"
+);
             }
-            stringbuilder.AppendLine($"\t}}\n" + 
-$"}}");
+
+            stringbuilder.AppendLine(
+"\t}"
+);
+            stringbuilder.AppendLine(
+"}"
+);
             context.AddSource($"{className}_Generated.cs", SourceText.From(stringbuilder.ToString(), Encoding.UTF8));
         }
-
         private static string GetConstraintType(ITypeParameterSymbol symbol)
         {
             List<string> constraintTypes = new List<string>();
@@ -165,19 +173,19 @@ $"}}");
             {
                 constraintTypes.Add(symbol.ReferenceTypeConstraintNullableAnnotation == NullableAnnotation.Annotated ? "class?" : "class");
             }
-            if (symbol.HasNotNullConstraint)
+            if(symbol.HasNotNullConstraint)
             {
                 constraintTypes.Add("notnull");
             }
-            foreach (var constraintType in symbol.ConstraintTypes)
+            foreach(var constraintType in symbol.ConstraintTypes)
             {
                 constraintTypes.Add(constraintType.ToDisplayString());
             }
-            if (symbol.HasConstructorConstraint && !symbol.HasValueTypeConstraint)
+            if(symbol.HasConstructorConstraint && !symbol.HasValueTypeConstraint)
             {
                 constraintTypes.Add("new()");
             }
-
+            
             return string.Join(", ", constraintTypes);
         }
     }
